@@ -18,10 +18,10 @@ python turing-bot.py grind 5 --key <api-key> --base <OpenAI URL> --model <model 
 python turing-bot.py grind inf --key <api-key> --base <OpenAI URL> --model <model name>
 
 # 选账号
-python turing-bot.py --account grind 5 --key <api-key>
+python turing-bot.py --account
 
 # Debug
-python turing-bot.py --debug grind 5 --key <api-key>
+python turing-bot.py --debug
 ```
 
 ## 结构
