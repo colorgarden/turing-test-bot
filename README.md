@@ -30,7 +30,7 @@ python turing-bot.py --debug grind 5 --key <api-key>
 ├── turing-bot.py    # CLI 入口
 ├── config.py        # 配置/日志/账号
 ├── api.py           # 图灵测试 HTTP
-├── llm.py           # DeepSeek 调用
+├── llm.py           # AI 调用
 ├── game.py          # 游戏逻辑 + WebSocket + SSE
 ├── search.py        # 联网搜索
 ├── account.json     # 账号存储
