@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+runtime.log
+game_logs.json
+account.json
+config.json
+fix_fstrings.py
