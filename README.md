@@ -12,10 +12,10 @@ python turing-bot.py register
 python turing-bot.py login -u <账号> -p <密码>
 
 # 刷分
-python turing-bot.py grind 5 --key <api-key> --base https://api.deepseek.com --model deepseek-v4-flash
+python turing-bot.py grind 5 --key <api-key> --base <OpenAI URL> --model <model name>
 
 # 无限
-python turing-bot.py grind inf --key <api-key> --base https://api.deepseek.com --model deepseek-v4-flash
+python turing-bot.py grind inf --key <api-key> --base <OpenAI URL> --model <model name>
 
 # 选账号
 python turing-bot.py --account grind 5 --key <api-key>
