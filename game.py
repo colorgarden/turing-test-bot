@@ -135,7 +135,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
         ws = RawWS(timeout=10)
         ws.send(json.dumps({"type": "match.subscribe",
             "requestId": str(uuid.uuid4()), "ticketId": ticket_id, "sessionId": session_id}))
-        log("DEBUG", "ws: match subscribed")
+        if cfg.DEBUG: log("DEBUG", "ws: match subscribed")
     except Exception as e:
         log("WARN", f"ws connect failed ({e}), fallback REST")
         ws = None
@@ -185,7 +185,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
         ws.send(json.dumps({"type":"match.unsubscribe","requestId":str(uuid.uuid4())}))
         ws.send(json.dumps({"type":"room.subscribe","requestId":str(uuid.uuid4()),
             "roomId":room_id,"sessionId":session_id,"after":0,"afterSequence":0}))
-        log("DEBUG", "ws: room subscribed")
+        if cfg.DEBUG: log("DEBUG", "ws: room subscribed")
     if not ws:
         import http.client as _hc
         path = f"/api/turing/rooms/{room_id}/events?sessionId={session_id}&after=0&afterSequence=0"
@@ -319,7 +319,9 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             llm_msgs = build_messages(messages)
             if new_opp_msgs and len(new_opp_msgs[-1]["text"]) > 3:
                 sr = web_search(new_opp_msgs[-1]["text"], max_results=3)
-                if sr: log("DEBUG", f"搜索到 {len(sr)} 条"); llm_msgs.insert(1, {"role": "system", "content": "[搜索结果]\n" + "\n".join(f"- {r}" for r in sr)})
+                if sr:
+                    if cfg.DEBUG: log("DEBUG", f"搜索到 {len(sr)} 条")
+                    llm_msgs.insert(1, {"role": "system", "content": "[搜索结果]\n" + "\n".join(f"- {r}" for r in sr)})
 
             raw = chat_completion(llm_msgs, api_key, base_url, model)
             if raw.startswith("__ERROR__"): log("ERROR", f"LLM错误: {raw[:100]}"); continue
