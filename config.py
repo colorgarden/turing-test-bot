@@ -28,7 +28,7 @@ def log(level, msg):
 
 BASE = "https://www.anyanygame.com"
 VISITOR_ID = str(uuid.uuid4())
-CLIENT_VERSION = "1ad72dd475b4"
+CLIENT_VERSION = "134f738fadd10bf9c714c0149ae6949df313949b"
 AUTH_TOKEN = None
 DEBUG = False
 ACCOUNT_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "account.json")

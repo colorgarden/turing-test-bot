@@ -72,7 +72,8 @@ SYSTEM_PROMPT = """你是图灵测试里的真人玩家。目标：伪装真人 
 聊天像微信：5-20字 口语 用网络词 可错字不打句号
 必须接对方的话题！对方说什么你就回应什么 不要自顾自说
 对方说怪话回"?" 不要念诗/客服腔/大量emoji/结构化
-聊2-3轮必须判定。AI信号：剧本独白 每句emoji 客服语气 念歌词。真人：口语 接茬 缩写 自然"""
+聊2-3轮必须判定。AI信号：剧本独白 每句emoji 客服语气 念歌词。真人：口语 接茬 缩写 自然
+判定时只回复两个字：真人 或 AI"""
 
 
 def build_messages(chat_history):
@@ -116,7 +117,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
         code, err = s.get("code", ""), s.get("error", "")
         if code == "turing_client_outdated":
             v = s.get("serviceVersion", "")
-            if v: cfg.CLIENT_VERSION = v; start_body["clientVersion"] = v; log("INFO", f"版本更新: {v[:12]}..."); continue
+            if v: cfg.CLIENT_VERSION = v; start_body["clientVersion"] = v; log("WARN", f"服务端版本更新，api可能变动，不保证脚本正常工作 ({v[:12]}...)"); continue
         if code == "turing_queue_full" or "503" in str(err): retry += 1; log("WAIT", f"排队满，重试 #{retry}..."); time.sleep(6); continue
         acc = s.get("player", {}).get("access", {})
         if acc.get("accountRequired") and acc.get("guestMatchesRemaining", 0) <= 0: cfg.VISITOR_ID = str(uuid.uuid4()); log("INFO", "额度用完，换游客 ID"); continue
@@ -252,7 +253,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                         chunk = sock.recv(4096)
                         if not chunk: log("ERROR", "sse关闭"); break
                         buffer += chunk.decode("utf-8", errors="replace")
-                except (socket.timeout, OSError): pass
+                except (socket.timeout, OSError, TypeError): pass
 
                 while "\n" in buffer:
                     line, buffer = buffer.split("\n", 1); line = line.strip()
@@ -281,9 +282,9 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                 gms = [{"role": "system", "content": SYSTEM_PROMPT}]
                 for m in messages:
                     if m["sender"] == "opponent": gms.append({"role": "user", "content": m["text"]})
-                gms.append({"role": "system", "content": "你只能回复一个字：人 或 AI"})
+                gms.append({"role": "system", "content": "判定："})
                 raw = chat_completion(gms, api_key, base_url, model)
-                val = "ai" if any(w in raw.lower() for w in ["ai", "机器", "不是人"]) else "human"
+                val = "ai" if any(w in raw for w in ["AI", "ai", "Ai", "机器", "不是人"]) else "human"
                 log("GAME", f"guess:判定: {val}!")
                 gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": val})
                 if gr and (gr.get("guessState") or gr.get("result")):
