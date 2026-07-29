@@ -63,7 +63,6 @@ class RawWS:
         try: self.ssock.close()
         except: pass
     @staticmethod
-    @staticmethod
     def _lb(n, masked=False):
         if n < 126: return bytes([n | (0x80 if masked else 0)])
         if n < 65536: return bytes([126 | (0x80 if masked else 0)]) + struct.pack(">H", n)
@@ -152,7 +151,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                 try:
                     evt = json.loads(raw)
                     t = evt.get("type", "")
-                    if t == "match.update":
+                    if t in ("match.subscribed", "match.update"):
                         st = evt.get("status", evt)
                         if st == "matched" or (isinstance(st, dict) and st.get("status") == "matched"):
                             room_id = evt.get("roomId") or (st.get("roomId") if isinstance(st, dict) else None)
@@ -182,8 +181,9 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
 
     # 3. 房间用 WS（有 WS 则订阅房间，否则 SSE 兜底）
     if ws:
-        ws.send(json.dumps({"type": "room.subscribe", "requestId": str(uuid.uuid4()),
-            "roomId": room_id, "sessionId": session_id}))
+        ws.send(json.dumps({"type":"match.unsubscribe","requestId":str(uuid.uuid4())}))
+        ws.send(json.dumps({"type":"room.subscribe","requestId":str(uuid.uuid4()),
+            "roomId":room_id,"sessionId":session_id,"after":0,"afterSequence":0}))
         log("DEBUG", "ws: room subscribed")
     if not ws:
         import http.client as _hc
