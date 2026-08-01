@@ -10,7 +10,7 @@ LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "runtime.log
 _log_initialized = False
 
 def log(level, msg):
-    """统一日志格式: [HH:MM:SS] [LEVEL] message，实时写文件"""
+    """统一日志格式: [HH:MM:SS] [LEVEL] message，实时写文件 + 广播 WebUI"""
     global _log_initialized
     prefix = f"[{ts()}] [{level}] "
     if "\n" in msg:
@@ -23,6 +23,13 @@ def log(level, msg):
         _log_initialized = True
         with open(LOG_FILE, mode, encoding="utf-8") as f:
             f.write(line + "\n")
+    except Exception:
+        pass
+    # 广播到 WebUI（惰性 import，失败不影响原输出）
+    try:
+        import webui
+        webui._append_log({"ts": ts(), "level": level, "msg": msg})
+        webui.emit({"type": "log", "ts": ts(), "level": level, "msg": msg})
     except Exception:
         pass
 
