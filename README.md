@@ -22,6 +22,9 @@ python turing-bot.py --account
 
 # Debug
 python turing-bot.py --debug
+
+# webgui
+python turing-bot.py --web
 ```
 
 ## 结构
@@ -35,5 +38,6 @@ python turing-bot.py --debug
 ├── search.py        # 联网搜索
 ├── account.json     # 账号存储
 ├── config.json      # 配置缓存
+├── webui.py         # webgui
 └── runtime.log      # 运行日志
 ```
