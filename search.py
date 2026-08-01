@@ -1,9 +1,14 @@
 # -*- coding: utf-8 -*-
-"""联网搜索——Bing Web Search API"""
+"""联网搜索——Bing/Startpage/SearXNG/DDG"""
 import json, ssl, urllib.request, urllib.parse
-from config import log, DEBUG
+from config import log, DEBUG, _proxy_handler
 
-BING_KEY = None  # 通过环境变量 BING_API_KEY 或 --bing-key 设置
+BING_KEY = None
+
+def _open(url, timeout=8):
+    if _proxy_handler:
+        return urllib.request.build_opener(_proxy_handler).open(url, timeout=timeout)
+    return urllib.request.urlopen(url, timeout=timeout, context=ssl._create_unverified_context())
 
 def web_search(query, max_results=3):
     if BING_KEY:
@@ -25,7 +30,7 @@ def _startpage_search(query, max_results=3):
         r = urllib.request.Request(f"{url}?{params}", headers={
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         })
-        resp = urllib.request.urlopen(r, timeout=8, context=ctx)
+        resp = _open(r, timeout=8, context=ctx)
         html = resp.read().decode("utf-8", errors="replace")
         results = []
         for m in re.finditer(r'<a[^>]*class="[^"]*result-link[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)</a>', html):
@@ -48,7 +53,7 @@ def _bing_search(query, max_results):
     })
     try:
         ctx = ssl._create_unverified_context()
-        resp = urllib.request.urlopen(r, timeout=5, context=ctx)
+        resp = _open(r, timeout=5, context=ctx)
         data = json.loads(resp.read().decode())
         results = []
         for page in data.get("webPages", {}).get("value", [])[:max_results]:
@@ -92,12 +97,10 @@ def _ddg_fallback(query, max_results=3):
     params = urllib.parse.urlencode({"q": query})
     try:
         ctx = ssl._create_unverified_context()
-        no_proxy = urllib.request.ProxyHandler({})
-        opener = urllib.request.build_opener(no_proxy)
         r = urllib.request.Request(url + params, headers={
             "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
         })
-        resp = opener.open(r, timeout=5)
+        resp = _open(r, timeout=5)
         html = resp.read().decode("utf-8", errors="replace")
         results = []
         for pat in [
