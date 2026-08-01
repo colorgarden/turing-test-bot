@@ -9,9 +9,35 @@ def web_search(query, max_results=3):
     if BING_KEY:
         r = _bing_search(query, max_results)
         if r: return r
+    r = _startpage_search(query, max_results)
+    if r: return r
     r = _searxng_search(query, max_results)
     if r: return r
     return _ddg_fallback(query, max_results)
+
+def _startpage_search(query, max_results=3):
+    """Startpage——Google 结果，免费，中文好"""
+    import re
+    url = "https://www.startpage.com/sp/search"
+    params = urllib.parse.urlencode({"query": query, "num": str(max_results), "language": "zh-CN"})
+    try:
+        ctx = ssl._create_unverified_context()
+        r = urllib.request.Request(f"{url}?{params}", headers={
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+        })
+        resp = urllib.request.urlopen(r, timeout=8, context=ctx)
+        html = resp.read().decode("utf-8", errors="replace")
+        results = []
+        for m in re.finditer(r'<a[^>]*class="[^"]*result-link[^"]*"[^>]*href="([^"]+)"[^>]*>([^<]+)</a>', html):
+            results.append(m.group(2).strip())
+            if len(results) >= max_results: break
+        if not results:
+            for m in re.finditer(r'<h3[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([^<]+)</a>', html):
+                results.append(re.sub(r'<[^>]+>', '', m.group(2)).strip())
+                if len(results) >= max_results: break
+        return results[:max_results]
+    except Exception:
+        return []
 
 def _bing_search(query, max_results):
     url = "https://api.bing.microsoft.com/v7.0/search"
