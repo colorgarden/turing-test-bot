@@ -140,7 +140,10 @@ if __name__ == "__main__":
         if use_web:
             from webui import start_webui, stop_webui
             actual_port, web_server = start_webui(web_port)
-            log("INFO", f"WebUI 已启动: http://127.0.0.1:{actual_port}")
+            url = f"http://127.0.0.1:{actual_port}"
+            log("INFO", f"WebUI 已启动: {url}")
+            import webbrowser
+            webbrowser.open(url)
         try:
             grind(n, api_key, base_url, model)
         finally:

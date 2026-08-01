@@ -5,3 +5,5 @@ game_logs.json
 account.json
 config.json
 fix_fstrings.py
+.codegraph/
+.omo/

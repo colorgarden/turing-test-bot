@@ -65,6 +65,13 @@ _HTML_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "turing-ch
 class _SSEHandler(http.server.BaseHTTPRequestHandler):
     """三个端点：GET / 返回 HTML，GET /events SSE 流，GET /state JSON 快照"""
 
+    def handle_one_request(self):
+        """覆写以静默客户端突然断连错误（Windows ConnectionAbortedError）"""
+        try:
+            return super().handle_one_request()
+        except (ConnectionAbortedError, ConnectionResetError):
+            pass
+
     def do_GET(self):
         path = self.path.split("?")[0]
         if path == "/":
