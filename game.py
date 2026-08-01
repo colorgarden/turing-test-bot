@@ -258,7 +258,10 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                                 seen_seq.add(msg["sequence"]); messages.append(msg)
                                 if msg["sender"] != "self":
                                     log("CHAT", f"recv:{msg['sender']}: {msg['text'][:60]}")
-                                    emit({"type": "chat", "sender": "opponent", "text": msg["text"], "sequence": msg["sequence"]})
+                                    if msg["sender"] == "system":
+                                        emit({"type": "status", "key": "system", "value": msg["text"]})
+                                    else:
+                                        emit({"type": "chat", "sender": "opponent", "text": msg["text"], "sequence": msg["sequence"]})
                         if "guessState" in room: guess_state = room["guessState"]
                         if "result" in room and room["result"]: result=room["result"]; phase="ended"; log("GAME","end:结果已出"); emit({"type":"result","result":room["result"]})
                         if room.get("state")=="ended": phase="ended"; log("GAME","end:游戏结束"); emit({"type":"result","result":room.get("result",{})})
@@ -285,7 +288,10 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                                     seen_seq.add(msg["sequence"]); messages.append(msg)
                                     if msg["sender"] != "self":
                                         log("CHAT", f"recv:{msg['sender']}: {msg['text'][:60]}")
-                                        emit({"type": "chat", "sender": "opponent", "text": msg["text"], "sequence": msg["sequence"]})
+                                        if msg["sender"] == "system":
+                                            emit({"type": "status", "key": "system", "value": msg["text"]})
+                                        else:
+                                            emit({"type": "chat", "sender": "opponent", "text": msg["text"], "sequence": msg["sequence"]})
                             if "guessState" in evt: guess_state = evt["guessState"]
                             if "result" in evt and evt["result"]: result=evt["result"]; phase="ended"; log("GAME","end:结果已出"); emit({"type":"result","result":evt["result"]})
                             if evt.get("state")=="ended": phase="ended"; log("GAME","end:游戏结束"); emit({"type":"result","result":evt.get("result",{})})
@@ -427,6 +433,7 @@ def grind(n_rounds, api_key, base_url, model):
             if correct: stats["correct"] += 1
             a = r.get("account", {}); s = "[OK]" if correct else "[XX]"
             log("INFO", f"{s} [{a.get('username', a.get('type', '?'))}] 猜 {res.get('guess', '?')} | 实际 {actual} | 对方猜 {res.get('opponentGuess', {}).get('guess', '?')} | 命中率 {stats['correct']}/{stats['games']}")
+            emit({"type": "status", "key": "round_result", "value": f"猜 {res.get('guess', '?')} | 实际 {actual} | 对方猜 {res.get('opponentGuess', {}).get('guess', '?')}"})
             update_state(stats=dict(stats))
             emit({"type": "stats", "stats": dict(stats)})
         i += 1; time.sleep(2)

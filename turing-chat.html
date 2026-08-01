@@ -436,8 +436,6 @@
         resetVerdict();
         updatePhase("queuing");
         timerValue.textContent = "--:--";
-        $("opponentId").textContent = "等待匹配…";
-        $("opponentLabel").textContent = "WAITING";
         $("playerId").textContent = "---";
         $("roomId").textContent = "---";
         addSystem("第 " + evt.round + " 轮" + (evt.total ? "/" + evt.total : "") + " 开始匹配…");
@@ -458,6 +456,10 @@
           state.game_start = evt.value;
           startTimer();
           addSystem("开始计时");
+        } else if (evt.key === "system"){
+          addSystem(evt.value);
+        } else if (evt.key === "round_result"){
+          addSystem("本局结果: " + evt.value);
         }
         break;
 
