@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>图灵测试｜真人还是 AI？ - 任意门</title>
+<style>
+/* ============ 原版设计系统（index-CM_1M_PL.css 提取） ============ */
+.turing-page{
+  --ink:#11110f; --paper:#f4f1e8; --muted:#aaa79e; --signal:#ff4e35;
+  --human:#70d6a5; --ai:#ffc247;
+  min-height:100vh; color:var(--ink); background-color:var(--paper);
+  background-image:linear-gradient(rgba(17,17,15,.035) 1px,transparent 1px),
+                   linear-gradient(90deg,rgba(17,17,15,.035) 1px,transparent 1px);
+  background-size:8px 8px;
+  font-family:"Courier New","Noto Sans Mono CJK SC",monospace;
+  letter-spacing:-.02em;
+}
+.turing-page *,.turing-page *:before,.turing-page *:after{box-sizing:border-box}
+.turing-page button,.turing-page input,.turing-page textarea,.turing-page select{font:inherit}
+.turing-page button,.turing-page a{-webkit-tap-highlight-color:transparent}
+
+.turing-main{width:min(1100px,calc(100% - 32px));min-height:calc(100vh - 104px);margin:0 auto;display:grid;place-items:center;padding:16px 0}
+
+/* 顶栏 */
+.turing-topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;width:min(860px,100%);margin:10px auto 0;padding:0 4px}
+.turing-wordmark{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:900;letter-spacing:.14em}
+.turing-wordmark span{color:var(--signal)}
+.turing-icon-button{width:36px;height:36px;display:grid;place-items:center;border:2px solid var(--ink);color:var(--ink);background:var(--paper);box-shadow:2px 2px 0 var(--ink);cursor:pointer}
+.turing-icon-button:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink)}
+
+/* 聊天壳 */
+.turing-chat-shell{width:min(860px,100%);height:min(760px,calc(100vh - 88px));min-height:610px;margin:14px 0;display:grid;grid-template-rows:auto auto minmax(0,1fr) auto auto;background:var(--paper);border:3px solid var(--ink);box-shadow:8px 8px 0 var(--ink);overflow:hidden}
+.turing-chat-shell.is-result{grid-template-rows:auto auto minmax(0,1fr) auto}
+
+/* 头部 */
+.turing-chat-header{min-height:82px;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;border-bottom:3px solid var(--ink)}
+.turing-opponent{display:flex;align-items:center;gap:12px}
+.turing-avatar{width:48px;height:48px;display:grid;place-items:center;color:var(--paper);background:var(--ink);font-size:26px;font-weight:900;box-shadow:4px 4px 0 var(--signal)}
+.turing-opponent span{display:block;color:#6a675f;font-size:9px;letter-spacing:.13em}
+.turing-opponent strong{display:block;margin-top:4px;font-size:15px}
+
+/* 计时器 */
+.turing-timer{text-align:right}
+.turing-timer span{display:block;color:#6a675f;font-size:9px;letter-spacing:.13em}
+.turing-timer strong{display:block;margin-top:2px;font-size:24px;line-height:1;letter-spacing:.04em}
+.turing-timer.is-urgent strong{color:var(--signal);animation:turing-blink 1s steps(2) infinite}
+@keyframes turing-blink{50%{opacity:0}}
+
+/* 状态条 */
+.turing-chat-status{padding:7px 14px;display:flex;justify-content:space-between;border-bottom:1px solid var(--ink);color:#66635d;font-size:9px;letter-spacing:.08em}
+.turing-online-dot{display:inline-block;width:7px;height:7px;margin-right:5px;background:#28b469;box-shadow:1px 1px 0 var(--ink)}
+.turing-online-dot.is-offline{background:#c72716}
+
+/* 消息区 */
+.turing-messages{min-height:0;padding:22px;display:flex;flex-direction:column;gap:17px;overflow-y:auto;scrollbar-color:var(--ink) var(--paper)}
+.turing-message{max-width:min(76%,540px);display:grid;grid-template-columns:1fr auto;gap:4px 10px}
+.turing-message>span{font-size:9px;font-weight:900;letter-spacing:.12em}
+.turing-message p{grid-column:1 / -1;margin:0;padding:11px 13px;border:2px solid var(--ink);font-size:14px;line-height:1.55;word-break:break-word;box-shadow:3px 3px 0 var(--ink);white-space:pre-wrap}
+.turing-message time{grid-column:2;grid-row:1;color:#77736b;font-size:9px}
+.turing-message.is-self{align-self:flex-end}
+.turing-message.is-self>span{text-align:right}
+.turing-message.is-self p{color:var(--paper);background:var(--ink);box-shadow:3px 3px 0 var(--signal)}
+.turing-message.is-opponent{align-self:flex-start}
+.turing-message.is-opponent p{background:#fffdf6}
+.turing-message.is-pending p,.turing-message.is-retrying p{opacity:.72}
+.turing-system-message{align-self:center;color:#77736b;font-size:9px;letter-spacing:.07em;text-align:center}
+
+/* 错误提示 */
+.turing-chat-error{margin:0 16px 8px;padding:8px 10px;border:2px solid var(--signal);background:#fff1e8;color:#c72716;font-size:11px;font-weight:900}
+
+/* 输入区 */
+.turing-compose{margin:0 16px 14px;display:grid;grid-template-columns:1fr 48px;border:3px solid var(--ink);background:#fff;box-shadow:3px 3px 0 var(--ink)}
+.turing-compose textarea{height:48px;min-height:48px;max-height:90px;padding:13px;resize:none;outline:0;border:0;background:transparent;font-size:13px;line-height:1.5}
+.turing-compose button{display:grid;place-items:center;border:0;border-left:3px solid var(--ink);color:var(--paper);background:var(--signal);cursor:pointer}
+.turing-compose button:disabled{opacity:.45;cursor:not-allowed}
+
+/* 判定栏 */
+.turing-verdict-bar{padding:12px 15px;display:grid;grid-template-columns:1fr 150px 150px;gap:10px;align-items:center;border-top:3px solid var(--ink);background:var(--ink);color:var(--paper)}
+.turing-verdict-copy span{display:block;font-size:10px;font-weight:900;letter-spacing:.1em}
+.turing-verdict-copy small{display:block;margin-top:4px;color:#aaa79e;font-size:9px;line-height:1.5}
+.turing-verdict-bar button{min-height:43px;border:2px solid var(--paper);color:var(--ink);font-size:12px;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 var(--paper)}
+.turing-verdict-bar button b{margin-right:4px}
+.turing-verdict-bar button.is-human{background:var(--human)}
+.turing-verdict-bar button.is-ai{background:var(--ai)}
+.turing-verdict-bar button.is-locked{opacity:.62;cursor:not-allowed;filter:saturate(.45)}
+.turing-verdict-bar button.is-active{outline:4px solid #ffe36e;outline-offset:2px}
+
+/* 结果弹窗 */
+.turing-modal-backdrop{position:fixed;inset:0;z-index:120;display:grid;place-items:center;padding:22px;background:#11110fe0;-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px)}
+.turing-result-card{width:min(460px,100%);padding:26px 24px 22px;text-align:center;border:4px solid var(--ink);background:var(--paper);box-shadow:9px 9px 0 var(--ink)}
+.turing-result-card.is-correct{box-shadow:9px 9px 0 var(--human)}
+.turing-result-card.is-wrong{box-shadow:9px 9px 0 var(--signal)}
+.turing-result-mark{color:var(--signal);font-size:11px;font-weight:900;letter-spacing:.16em}
+.turing-result-card h2{margin:14px 0 8px;font-size:30px;line-height:1.05}
+.turing-result-card p{margin:0 0 6px;color:#5f5c55;font-size:13px;line-height:1.7}
+.turing-result-score{display:inline-block;margin-top:10px;padding:6px 12px;border:2px solid var(--ink);background:#fff;font-size:11px;font-weight:900;box-shadow:2px 2px 0 var(--ink)}
+.turing-result-symbol{margin:14px auto 4px;width:88px;height:88px;display:grid;place-items:center;font-size:40px;font-weight:900}
+.turing-result-symbol.is-correct{border-radius:50%;color:#2f8f4e;background:#dff3df;box-shadow:4px 4px 0 var(--human)}
+.turing-result-symbol.is-wrong{color:var(--signal);background:#fff1e8;box-shadow:4px 4px #ffb5a8}
+.turing-result-card-actions{margin-top:16px;display:flex;justify-content:center;gap:10px}
+.turing-result-card-actions button{min-height:40px;padding:0 18px;border:2px solid var(--ink);color:var(--paper);background:var(--ink);font-size:12px;font-weight:900;cursor:pointer;box-shadow:3px 3px 0 var(--signal)}
+.turing-result-card-actions button.is-ghost{color:var(--ink);background:transparent;box-shadow:3px 3px 0 var(--ink)}
+
+/* 统计栏 */
+.turing-stats-bar{width:min(860px,100%);margin:0 auto 10px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;gap:8px;border:3px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--ink);font-size:10px;font-weight:900;letter-spacing:.06em;flex-wrap:wrap}
+.turing-stats-bar span{white-space:nowrap}
+.turing-stats-bar .stat-good{color:#2f8f4e}
+.turing-stats-bar .stat-bad{color:var(--signal)}
+
+/* 日志流面板 */
+.turing-log-panel{width:min(860px,100%);margin:0 auto 10px;border:3px solid var(--ink);background:var(--paper);box-shadow:4px 4px 0 var(--ink)}
+.turing-log-toggle{width:100%;padding:8px 14px;display:flex;justify-content:space-between;align-items:center;border:0;background:var(--ink);color:var(--paper);font-size:10px;font-weight:900;letter-spacing:.1em;cursor:pointer}
+.turing-log-toggle:hover{background:#2a2927}
+.turing-log-body{max-height:300px;overflow-y:auto;padding:8px 14px;font-size:10px;line-height:1.7;font-family:"Courier New","Noto Sans Mono CJK SC",monospace;scrollbar-color:var(--ink) var(--paper);display:none}
+.turing-log-body.is-open{display:block}
+.turing-log-body .log-line{margin:0;padding:1px 0;white-space:pre-wrap;word-break:break-all}
+.turing-log-body .log-debug{color:#999}
+.turing-log-body .log-error{color:var(--signal);font-weight:900}
+.turing-log-body .log-warn{color:#c78b20}
+.turing-log-body .log-game{color:#2f6faf}
+.turing-log-body .log-chat{color:#2f8f4e}
+.turing-log-body .log-llm{color:#8b5cf6}
+.turing-log-body .log-info{color:#66635d}
+
+/* 页脚提示 */
+.turing-footer{padding:18px 0 28px;text-align:center;color:#77736b;font-size:10px;letter-spacing:.12em}
+
+/* 移动端（原版媒体查询） */
+@media (max-width:640px){
+  .turing-messages{padding:15px 12px}
+  .turing-message{max-width:86%}
+  .turing-avatar{width:40px;height:40px}
+  .turing-timer strong{font-size:19px}
+  .turing-opponent strong{font-size:12px}
+  .turing-main{width:min(100% - 20px,1100px)}
+  .turing-verdict-bar{grid-template-columns:1fr;padding:10px}
+  .turing-verdict-copy{text-align:center}
+  .turing-stats-bar{flex-direction:column;align-items:flex-start}
+}
+</style>
+</head>
+<body class="turing-page">
+<div class="turing-topbar">
+  <button class="turing-icon-button" type="button" title="返回" onclick="history.back()">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+  </button>
+  <div class="turing-wordmark"><span>[ T ]</span> TURING TEST / 图灵测试</div>
+  <span style="width:36px"></span>
+</div>
+
+<main class="turing-main">
+  <section class="turing-chat-shell" id="chatShell" aria-label="图灵测试匿名聊天">
+    <!-- 头部 -->
+    <header class="turing-chat-header">
+      <div class="turing-opponent">
+        <div class="turing-avatar" aria-hidden="true">?</div>
+        <div>
+          <span id="opponentLabel">CONNECTED WITH</span>
+          <strong id="opponentId">等待匹配…</strong>
+        </div>
+      </div>
+      <div class="turing-timer" id="timer" role="timer">
+        <span id="timerLabel">TIME LEFT</span>
+        <strong id="timerValue">--:--</strong>
+      </div>
+    </header>
+
+    <!-- 状态条 -->
+    <div class="turing-chat-status">
+      <span><i class="turing-online-dot" id="onlineDot"></i><span id="phaseLabel">等待连接</span></span>
+      <span>YOU // <span id="playerId">---</span> | ROOM <span id="roomId">---</span></span>
+    </div>
+
+    <!-- 消息区 -->
+    <div class="turing-messages" id="messages" aria-live="polite">
+      <div class="turing-system-message">◤ 等待后端连接… ◥</div>
+    </div>
+
+    <!-- 错误提示（隐藏） -->
+    <p class="turing-chat-error" id="chatError" role="alert" style="display:none">!</p>
+
+    <!-- 输入区（只读展示） -->
+    <div class="turing-compose">
+      <textarea id="input" placeholder="由 AI 自动操作，只读展示…" aria-label="聊天输入" readonly disabled></textarea>
+      <button type="button" id="sendBtn" disabled aria-label="发送消息">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4Z"/></svg>
+      </button>
+    </div>
+
+    <!-- 判定栏 -->
+    <div class="turing-verdict-bar" id="verdictBar">
+      <div class="turing-verdict-copy" id="verdictCopy">
+        <span>LOCK YOUR ANSWER</span>
+        <small>AI 自动判定中…</small>
+      </div>
+      <button type="button" class="is-human" id="btnHuman" disabled><b>H</b>判定为真人</button>
+      <button type="button" class="is-ai" id="btnAi" disabled><b>A</b>判定为 AI</button>
+    </div>
+  </section>
+</main>
+
+<!-- 统计栏 -->
+<div class="turing-stats-bar" id="statsBar">
+  <span>总局: <b id="statGames">0</b></span>
+  <span>命中: <b class="stat-good" id="statCorrect">0</b></span>
+  <span>命中率: <b id="statRate">--</b></span>
+  <span>真人对手: <b id="statHuman">0</b></span>
+  <span>AI对手: <b id="statAi">0</b></span>
+  <span>错误: <b class="stat-bad" id="statErrors">0</b></span>
+</div>
+
+<!-- 日志流面板 -->
+<div class="turing-log-panel" id="logPanel">
+  <button class="turing-log-toggle" id="logToggle">
+    <span>◉ 原始日志流（点击展开）</span><span id="logCount">0 条</span>
+  </button>
+  <div class="turing-log-body" id="logBody"></div>
+</div>
+
+<div class="turing-footer">[ T ] TURING TEST // WebUI 实时镜像 · FREE TO PLAY</div>
+
+<!-- 结果弹窗（隐藏） -->
+<div class="turing-modal-backdrop" id="resultBackdrop" style="display:none">
+  <section class="turing-result-card" role="dialog" aria-modal="true">
+    <div class="turing-result-mark" id="resultMark">ROUND END</div>
+    <div class="turing-result-symbol" id="resultSymbol">?</div>
+    <h2 id="resultTitle">等待结果…</h2>
+    <p id="resultDetail"></p>
+    <span class="turing-result-score" id="resultScore">LOCAL RECORD · 0 局 · --% 命中</span>
+    <div class="turing-result-card-actions">
+      <button type="button" class="is-ghost" id="btnCloseResult">关闭</button>
+    </div>
+  </section>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var messagesEl = $("messages"), chatError = $("chatError");
+  var verdictCopy = $("verdictCopy"), btnHuman = $("btnHuman"), btnAi = $("btnAi");
+  var timerEl = $("timer"), timerLabel = $("timerLabel"), timerValue = $("timerValue");
+  var onlineDot = $("onlineDot"), phaseLabel = $("phaseLabel");
+  var logBody = $("logBody"), logToggle = $("logToggle"), logCount = $("logCount");
+  var inputEl = $("input"), sendBtn = $("sendBtn");
+
+  /* ---------- 全局状态 ---------- */
+  var state = {
+    round: 0, total: 0, phase: "idle", queue: null,
+    roomId: null, playerId: "---", account: null,
+    game_start: null, connected: false,
+    stats: { games: 0, correct: 0, actual_ai: 0, actual_human: 0, errors: 0 }
+  };
+  var seenSeqs = {};
+  var lastGuess = null;
+  var logLineCount = 0;
+  var timerInterval = null;
+  var resultShown = false;
+
+  /* ---------- 工具 ---------- */
+  function fmtTime(sec){
+    if (sec < 0) return "00:00";
+    var m = Math.floor(sec / 60);
+    var s = Math.floor(sec % 60);
+    return (m < 10 ? "0" : "") + m + ":" + (s < 10 ? "0" : "") + s;
+  }
+  function nowTime(){
+    return new Date().toLocaleTimeString("zh-CN", { hour:"2-digit", minute:"2-digit", second:"2-digit" });
+  }
+
+  /* ---------- 计时器 ---------- */
+  function startTimer(){
+    if (timerInterval) clearInterval(timerInterval);
+    timerInterval = setInterval(tick, 1000);
+    tick();
+  }
+  function tick(){
+    if (!state.game_start){
+      timerValue.textContent = "--:--";
+      timerLabel.textContent = "TIME LEFT";
+      timerEl.classList.remove("is-urgent");
+      return;
+    }
+    var elapsed = (Date.now() / 1000) - state.game_start;
+    var remaining = 600 - elapsed;
+    if (state.phase === "ended"){
+      timerValue.textContent = fmtTime(elapsed);
+      timerLabel.textContent = "ELAPSED";
+      timerEl.classList.remove("is-urgent");
+      if (timerInterval) { clearInterval(timerInterval); timerInterval = null; }
+      return;
+    }
+    timerValue.textContent = fmtTime(Math.max(0, remaining));
+    timerLabel.textContent = remaining < 60 ? "TIME LEFT" : "ELAPSED";
+    timerEl.classList.toggle("is-urgent", remaining <= 60);
+  }
+
+  /* ---------- 消息渲染 ---------- */
+  function addMessage(sender, text, seq){
+    if (seq && seenSeqs[seq]) return;
+    if (seq) seenSeqs[seq] = true;
+
+    var wrap = document.createElement("div");
+    wrap.className = "turing-message " + (sender === "self" ? "is-self" : "is-opponent");
+
+    var tag = document.createElement("span");
+    tag.textContent = sender === "self" ? "BOT" : "UNKNOWN";
+    wrap.appendChild(tag);
+
+    var p = document.createElement("p");
+    p.textContent = text;
+    wrap.appendChild(p);
+
+    var time = document.createElement("time");
+    time.textContent = nowTime();
+    wrap.appendChild(time);
+
+    messagesEl.appendChild(wrap);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  function addSystem(text){
+    var sys = messagesEl.querySelectorAll(".turing-system-message");
+    if (sys.length > 0 && sys[sys.length-1].textContent.replace(/[◤◥]/g,"").trim() === text.trim()) return;
+    var d = document.createElement("div");
+    d.className = "turing-system-message";
+    d.textContent = "◤ " + text + " ◥";
+    messagesEl.appendChild(d);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+  }
+
+  /* ---------- 日志流 ---------- */
+  function addLog(ts, level, msg){
+    logLineCount++;
+    logCount.textContent = logLineCount + " 条";
+    var p = document.createElement("p");
+    p.className = "log-line log-" + level.toLowerCase();
+    p.textContent = "[" + ts + "] [" + level + "] " + msg;
+    logBody.appendChild(p);
+    logBody.scrollTop = logBody.scrollHeight;
+    while (logBody.children.length > 1000){
+      logBody.removeChild(logBody.firstChild);
+    }
+  }
+
+  /* ---------- 判定栏 ---------- */
+  function setVerdictLocked(guess){
+    btnHuman.classList.add("is-locked");
+    btnAi.classList.add("is-locked");
+    btnHuman.classList.remove("is-active");
+    btnAi.classList.remove("is-active");
+    if (guess === "human") btnHuman.classList.add("is-active");
+    else if (guess === "ai") btnAi.classList.add("is-active");
+    verdictCopy.querySelector("span").textContent = "ANSWER LOCKED";
+    verdictCopy.querySelector("small").textContent = guess ? "已判定为 " + (guess === "human" ? "真人" : "AI") : "判定已锁定";
+  }
+  function resetVerdict(){
+    btnHuman.classList.remove("is-locked", "is-active");
+    btnAi.classList.remove("is-locked", "is-active");
+    verdictCopy.querySelector("span").textContent = "LOCK YOUR ANSWER";
+    verdictCopy.querySelector("small").textContent = "AI 自动判定中…";
+    lastGuess = null;
+  }
+
+  /* ---------- 结果弹窗 ---------- */
+  function showResult(result){
+    if (!result || resultShown) return;
+    if (!result.actualType && !result.guess) return;
+    resultShown = true;
+    var correct = result.correct === true;
+    var card = $("resultBackdrop").querySelector(".turing-result-card");
+    card.classList.remove("is-correct", "is-wrong");
+    if (correct) card.classList.add("is-correct");
+    else card.classList.add("is-wrong");
+
+    $("resultMark").textContent = correct ? "CORRECT" : "WRONG";
+    $("resultSymbol").textContent = correct ? "✓" : "✕";
+    $("resultSymbol").className = "turing-result-symbol " + (correct ? "is-correct" : "is-wrong");
+    $("resultTitle").textContent = correct ? "判定正确！" : "判定错误";
+    var guess = result.guess || "?";
+    var actual = result.actualType || "?";
+    var opp = result.opponentGuess || {};
+    $("resultDetail").textContent =
+      "你判定对方是 " + (guess === "human" ? "真人" : guess === "ai" ? "AI" : guess) +
+      "，实际是 " + (actual === "human" ? "真人" : actual === "ai" ? "AI" : actual) +
+      (opp.guess ? "。对方判定你是 " + (opp.guess === "human" ? "真人" : "AI") : "");
+    var g = state.stats.games;
+    var rate = g > 0 ? Math.round(state.stats.correct / g * 100) : 0;
+    $("resultScore").textContent = "LOCAL RECORD · " + g + " 局 · " + rate + "% 命中";
+    $("resultBackdrop").style.display = "grid";
+  }
+  $("btnCloseResult").onclick = function(){ $("resultBackdrop").style.display = "none"; };
+
+  /* ---------- 统计栏 ---------- */
+  function updateStats(stats){
+    if (!stats) return;
+    state.stats = stats;
+    $("statGames").textContent = stats.games || 0;
+    $("statCorrect").textContent = stats.correct || 0;
+    $("statAi").textContent = stats.actual_ai || 0;
+    $("statHuman").textContent = stats.actual_human || 0;
+    $("statErrors").textContent = stats.errors || 0;
+    var g = stats.games || 0;
+    var r = g > 0 ? Math.round((stats.correct || 0) / g * 100) : 0;
+    $("statRate").textContent = g > 0 ? r + "%" : "--";
+  }
+
+  /* ---------- 状态条 ---------- */
+  function updatePhase(phase){
+    var map = { idle: "空闲", queuing: "排队中…", chatting: "聊天中", ended: "本局结束" };
+    phaseLabel.textContent = map[phase] || phase;
+    onlineDot.className = "turing-online-dot" + (phase === "idle" ? " is-offline" : "");
+  }
+
+  /* ---------- 事件处理 ---------- */
+  function handleEvent(evt){
+    switch (evt.type){
+      case "log":
+        addLog(evt.ts, evt.level, evt.msg);
+        break;
+
+      case "chat":
+        addMessage(evt.sender, evt.text, evt.sequence);
+        break;
+
+      case "round":
+        state.round = evt.round;
+        state.total = evt.total || 0;
+        state.phase = "queuing";
+        state.roomId = null;
+        state.game_start = null;
+        state.queue = null;
+        resultShown = false;
+        seenSeqs = {};
+        resetVerdict();
+        updatePhase("queuing");
+        timerValue.textContent = "--:--";
+        $("opponentId").textContent = "等待匹配…";
+        $("opponentLabel").textContent = "WAITING";
+        $("playerId").textContent = "---";
+        $("roomId").textContent = "---";
+        addSystem("第 " + evt.round + " 轮" + (evt.total ? "/" + evt.total : "") + " 开始匹配…");
+        break;
+
+      case "status":
+        if (evt.key === "queue"){
+          state.queue = evt.value;
+          addSystem("排队位置: " + evt.value);
+        } else if (evt.key === "connected"){
+          state.roomId = evt.value;
+          state.connected = true;
+          state.phase = "chatting";
+          updatePhase("chatting");
+          $("roomId").textContent = evt.value;
+          addSystem("已连接房间 " + evt.value);
+        } else if (evt.key === "game_start"){
+          state.game_start = evt.value;
+          startTimer();
+          addSystem("开始计时");
+        }
+        break;
+
+      case "guess":
+        lastGuess = evt.value;
+        setVerdictLocked(evt.value);
+        addSystem("Bot 判定: " + (evt.value === "human" ? "真人" : "AI"));
+        break;
+
+      case "result":
+        if (evt.result){
+          state.phase = "ended";
+          updatePhase("ended");
+          showResult(evt.result);
+          addSystem("对局结束");
+        }
+        break;
+
+      case "stats":
+        updateStats(evt.stats);
+        break;
+    }
+  }
+
+  /* ---------- SSE 连接 ---------- */
+  function connectSSE(){
+    var es = new EventSource("/events");
+    es.onopen = function(){
+      fetch("/state").then(function(r){ return r.json(); }).then(function(data){
+        if (!data || !data.state) return;
+        var s = data.state;
+        if (s.stats) updateStats(s.stats);
+        if (s.round) state.round = s.round;
+        if (s.total) state.total = s.total;
+        if (s.roomId) { state.roomId = s.roomId; $("roomId").textContent = s.roomId; }
+        if (s.playerId && s.playerId !== "?") { state.playerId = s.playerId; $("playerId").textContent = s.playerId; }
+        if (s.game_start) { state.game_start = s.game_start; startTimer(); }
+        if (s.phase) { state.phase = s.phase; updatePhase(s.phase); }
+        if (s.connected) state.connected = true;
+        if (s.account){
+          var a = s.account;
+          if (a.username) $("opponentId").textContent = "BOT: " + a.username;
+          $("opponentLabel").textContent = a.type === "registered" ? "REGISTERED" : "GUEST";
+        }
+        if (data.logs && data.logs.length){
+          for (var i = 0; i < data.logs.length; i++){
+            var l = data.logs[i];
+            addLog(l.ts, l.level, l.msg);
+          }
+        }
+        if (s.messages && s.messages.length){
+          for (var j = 0; j < s.messages.length; j++){
+            var m = s.messages[j];
+            if (m.sender === "system") continue;
+            addMessage(m.sender === "opponent" ? "opponent" : "self", m.text, m.sequence);
+          }
+        }
+        if (state.round > 0){
+          addSystem("已恢复: 第 " + state.round + " 轮" + (state.total ? "/" + state.total : ""));
+        }
+        var first = messagesEl.querySelector(".turing-system-message");
+        if (first && first.textContent.indexOf("等待后端连接") >= 0){
+          first.textContent = "◤ 已连接后端，等待对局开始 ◥";
+        }
+      }).catch(function(){});
+    };
+    es.onmessage = function(e){
+      try { handleEvent(JSON.parse(e.data)); } catch(err){}
+    };
+    es.onerror = function(){};
+    return es;
+  }
+
+  /* ---------- 日志面板折叠 ---------- */
+  logToggle.onclick = function(){
+    logBody.classList.toggle("is-open");
+    var span = logToggle.querySelector("span");
+    span.textContent = logBody.classList.contains("is-open") ? "◉ 原始日志流（点击折叠）" : "◉ 原始日志流（点击展开）";
+  };
+
+  /* ---------- 初始化 ---------- */
+  var firstSys = messagesEl.querySelector(".turing-system-message");
+  if (firstSys) firstSys.textContent = "◤ 连接后端中… ◥";
+
+  inputEl.disabled = true; sendBtn.disabled = true;
+  btnHuman.disabled = true; btnAi.disabled = true;
+
+  var es = connectSSE();
+  startTimer();
+})();
+</script>
+</body>
+</html>

@@ -91,6 +91,20 @@ if __name__ == "__main__":
     if bing_key:
         search.BING_KEY = bing_key
 
+    # WebUI 参数
+    use_web = "--web" in args
+    web_port = int(get_arg("--port") or "8080")
+    if use_web:
+        args = [a for a in args if a != "--web"]
+        # 移除 --port 及其值
+        try:
+            pi = args.index("--port")
+            args.pop(pi)  # 移除 "--port"
+            if pi < len(args):
+                args.pop(pi)  # 移除端口号
+        except ValueError:
+            pass
+
     if "--account" in args:
         chosen = select_account()
         if chosen:
@@ -121,7 +135,18 @@ if __name__ == "__main__":
         if not api_key:
             log("ERROR", "需要 API key: --key <key> 或环境变量 OPENAI_API_KEY")
             sys.exit(1)
-        grind(n, api_key, base_url, model)
+        # 启动 WebUI
+        web_server = None
+        if use_web:
+            from webui import start_webui, stop_webui
+            actual_port, web_server = start_webui(web_port)
+            log("INFO", f"WebUI 已启动: http://127.0.0.1:{actual_port}")
+        try:
+            grind(n, api_key, base_url, model)
+        finally:
+            if web_server:
+                stop_webui(web_server)
+                log("INFO", "WebUI 已关闭")
     elif cmd == "play":
         if not api_key:
             log("ERROR", "需要 API key")
@@ -139,7 +164,7 @@ if __name__ == "__main__":
         print("  python turing-bot.py login -u <账号> -p <密码>")
         print()
         print("刷分:")
-        print("  python turing-bot.py grind <轮数> --key <api-key> [--base <url>] [--model <model>] [--debug]")
+        print("  python turing-bot.py grind <轮数> --key <api-key> [--base <url>] [--model <model>] [--debug] [--web] [--port <port>]")
         print("  python turing-bot.py --account grind <轮数> ...")
         print()
         print("参数:")
@@ -149,3 +174,5 @@ if __name__ == "__main__":
         print("  --debug   详细日志")
         print("  --proxy   代理地址")
         print("  --account 交互选择已保存账号")
+        print("  --web     启动 WebUI 实时镜像（http://127.0.0.1:8080）")
+        print("  --port    WebUI 端口号（默认 8080，被占用自动递增）")

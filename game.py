@@ -7,6 +7,13 @@ from api import req
 from llm import chat_completion
 from search import web_search
 
+# WebUI 广播（惰性导入，无 webui 时 emit 为 no-op）
+try:
+    from webui import emit, update_state
+except ImportError:
+    def emit(*a, **kw): pass
+    def update_state(*a, **kw): pass
+
 # ---- 裸 WebSocket（仅排队用） ----
 class RawWS:
     def __init__(self, timeout=10):
@@ -108,6 +115,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
 
     acct = play_one_game.account_info
     log("GAME", f"[{acct.get('username', acct.get('type', '?'))}] 发起匹配 {nickname}")
+    update_state(account=dict(acct), phase="queuing", playerId="?")
 
     # 1. start
     start_body = {"nickname": nickname, "protocolVersion": 3, "clientVersion": cfg.CLIENT_VERSION, "chatDurationSec": 600, "matchTimeoutSec": 30}
@@ -129,6 +137,8 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
     ticket_id, session_id = ticket["ticketId"], ticket["sessionId"]
     player_id = s.get("player", {}).get("playerId", "?")
     log("GAME", f"queue:排队中 #{ticket.get('queuePosition', '?')}")
+    update_state(playerId=player_id, queue=f"#{ticket.get('queuePosition', '?')}")
+    emit({"type": "status", "key": "queue", "value": f"#{ticket.get('queuePosition', '?')}"})
 
     # 2. WebSocket 排队
     try:
@@ -158,7 +168,10 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                             room_id = evt.get("roomId") or (st.get("roomId") if isinstance(st, dict) else None)
                             if room_id: break
                         if isinstance(st, dict):
-                            log("GAME", f"queue:排队 #{st.get('queuePosition','?')} (已等 {st.get('queuedForMs',st.get('waitedMs',0))//1000}s)")
+                            qp = st.get('queuePosition','?'); qd = st.get('queuedForMs',st.get('waitedMs',0))//1000
+                            log("GAME", f"queue:排队 #{qp} (已等 {qd}s)")
+                            update_state(queue=f"#{qp} (已等 {qd}s)")
+                            emit({"type": "status", "key": "queue", "value": f"#{qp} (已等 {qd}s)"})
                         else:
                             log("GAME", f"queue:状态 {st}")
                     elif t == "match.fatal":
@@ -179,6 +192,8 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
     if not room_id: req("POST", "/api/turing/leave", {"ticketId": ticket_id, "sessionId": session_id}); return {"error": "匹配超时"}
 
     log("GAME", f"conn:已连接 {room_id}")
+    update_state(roomId=room_id, connected=True, phase="chatting")
+    emit({"type": "status", "key": "connected", "value": room_id})
 
     # 3. 房间用 WS（有 WS 则订阅房间，否则 SSE 兜底）
     if ws:
@@ -225,6 +240,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                 g = random.choice(["嗨", "你好啊", "在吗", "有人吗", "来了来了"])
                 req("POST", f"/api/turing/rooms/{room_id}/messages", {"sessionId": session_id, "text": g})
                 log("CHAT", f"send:抢先: {g}")
+                emit({"type": "chat", "sender": "self", "text": g, "sequence": 0})
             first_loop = False
 
             # 读事件（WS 优先）
@@ -240,10 +256,12 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                         for msg in room.get("messages", []):
                             if msg["sequence"] not in seen_seq:
                                 seen_seq.add(msg["sequence"]); messages.append(msg)
-                                if msg["sender"] != "self": log("CHAT", f"recv:{msg['sender']}: {msg['text'][:60]}")
+                                if msg["sender"] != "self":
+                                    log("CHAT", f"recv:{msg['sender']}: {msg['text'][:60]}")
+                                    emit({"type": "chat", "sender": "opponent", "text": msg["text"], "sequence": msg["sequence"]})
                         if "guessState" in room: guess_state = room["guessState"]
-                        if "result" in room and room["result"]: result=room["result"]; phase="ended"; log("GAME","end:结果已出")
-                        if room.get("state")=="ended": phase="ended"; log("GAME","end:游戏结束")
+                        if "result" in room and room["result"]: result=room["result"]; phase="ended"; log("GAME","end:结果已出"); emit({"type":"result","result":room["result"]})
+                        if room.get("state")=="ended": phase="ended"; log("GAME","end:游戏结束"); emit({"type":"result","result":room.get("result",{})})
                     elif t in ("room.fatal","match.fatal"): log("ERROR",f"fatal: {evt}"); phase="ended"
                 if not ws_alive[0]: log("ERROR","ws断线"); phase="ended"; break
             else:
@@ -265,10 +283,12 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                             for msg in evt.get("messages", []):
                                 if msg["sequence"] not in seen_seq:
                                     seen_seq.add(msg["sequence"]); messages.append(msg)
-                                    if msg["sender"] != "self": log("CHAT", f"recv:{msg['sender']}: {msg['text'][:60]}")
+                                    if msg["sender"] != "self":
+                                        log("CHAT", f"recv:{msg['sender']}: {msg['text'][:60]}")
+                                        emit({"type": "chat", "sender": "opponent", "text": msg["text"], "sequence": msg["sequence"]})
                             if "guessState" in evt: guess_state = evt["guessState"]
-                            if "result" in evt and evt["result"]: result=evt["result"]; phase="ended"; log("GAME","end:结果已出")
-                            if evt.get("state")=="ended": phase="ended"; log("GAME","end:游戏结束")
+                            if "result" in evt and evt["result"]: result=evt["result"]; phase="ended"; log("GAME","end:结果已出"); emit({"type":"result","result":evt["result"]})
+                            if evt.get("state")=="ended": phase="ended"; log("GAME","end:游戏结束"); emit({"type":"result","result":evt.get("result",{})})
                         except json.JSONDecodeError: pass
                     elif line.startswith("event:"):
                         if line[6:].strip() in ("fatal","superseded"): phase="ended"
@@ -286,6 +306,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                 raw = chat_completion(gms, api_key, base_url, model)
                 val = "ai" if any(w in raw for w in ["AI", "ai", "Ai", "机器", "不是人"]) else "human"
                 log("GAME", f"guess:判定: {val}!")
+                emit({"type": "guess", "value": val, "by": "self"})
                 gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": val})
                 if gr and (gr.get("guessState") or gr.get("result")):
                     we_locked = True
@@ -299,14 +320,14 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             new_opp_msgs = [m for m in opp_msgs if m["sequence"] > last_replied_seq]
             elapsed = now - game_start if game_start else 0
 
-            if game_start is None and opp_msgs: game_start = time.time(); elapsed = 0; log("GAME", "timer:开始计时")
+            if game_start is None and opp_msgs: game_start = time.time(); elapsed = 0; log("GAME", "timer:开始计时"); update_state(game_start=game_start); emit({"type": "status", "key": "game_start", "value": game_start})
             if not opp_msgs and not self_msgs and not (guess_state and guess_state.get("opponentLocked")): continue
 
             ol = guess_state and guess_state.get("opponentLocked")
             if not game_start and not opp_msgs and elapsed > 15 and not self_msgs and not ol:
                 t = random.choice(["你好啊", "在吗", "嗨", "有人吗"]); game_start = time.time()
                 req("POST", f"/api/turing/rooms/{room_id}/messages", {"sessionId": session_id, "text": t})
-                log("CHAT", f"send:{t}"); continue
+                log("CHAT", f"send:{t}"); emit({"type": "chat", "sender": "self", "text": t, "sequence": 0}); continue
 
             sa = False
             if not we_locked:
@@ -347,12 +368,14 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                 req("POST", f"/api/turing/rooms/{room_id}/messages", {"sessionId": session_id, "text": text})
                 if new_opp_msgs: last_replied_seq = new_opp_msgs[-1]["sequence"]
                 log("CHAT", f"send:{text}")
+                emit({"type": "chat", "sender": "self", "text": text, "sequence": 0})
             elif action.get("action") == "guess":
                 if we_locked: log("WARN", "已锁定跳过")
                 else:
                     val = action.get("value", "human")
                     if val in ("human", "ai"):
                         log("GAME", f"guess:判定: {val}!")
+                        emit({"type": "guess", "value": val, "by": "self"})
                         gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": val})
                         if gr and (gr.get("guessState") or gr.get("result")):
                             we_locked = True
@@ -380,15 +403,21 @@ def grind(n_rounds, api_key, base_url, model):
     inf = n_rounds == float("inf")
     label = "无限" if inf else str(int(n_rounds))
     log("INFO", f"=== 图灵测试刷分模式: {label} 轮 ==="); log("INFO", f"模型: {model}")
+    total_n = n_rounds if not inf else 0
+    update_state(total=total_n, round=0, stats=dict(stats), phase="idle")
+    emit({"type": "stats", "stats": dict(stats)})
     i = 0
     while inf or i < n_rounds:
         try:
             log("INFO", f"--- 第 {i+1}/{label} 轮 ---")
+            update_state(round=i+1, phase="queuing", roomId=None, playerId="?", queue=None, game_start=None, messages=[])
+            emit({"type": "round", "round": i+1, "total": total_n})
             r = play_one_game(f"{nickname}{random.randint(1, 999)}", api_key, base_url, model, logs)
         except KeyboardInterrupt: print("\n用户中断", flush=True); break
         if "error" in r:
             stats["errors"] += 1
             d = r.get("detail", ""); log("ERROR", f"{r['error']} {d}" if d else r['error'])
+            update_state(stats=dict(stats)); emit({"type": "stats", "stats": dict(stats)})
         else:
             stats["games"] += 1
             res = r.get("result") or {}
@@ -398,6 +427,8 @@ def grind(n_rounds, api_key, base_url, model):
             if correct: stats["correct"] += 1
             a = r.get("account", {}); s = "[OK]" if correct else "[XX]"
             log("INFO", f"{s} [{a.get('username', a.get('type', '?'))}] 猜 {res.get('guess', '?')} | 实际 {actual} | 对方猜 {res.get('opponentGuess', {}).get('guess', '?')} | 命中率 {stats['correct']}/{stats['games']}")
+            update_state(stats=dict(stats))
+            emit({"type": "stats", "stats": dict(stats)})
         i += 1; time.sleep(2)
     try:
         lf = os.path.join(os.path.dirname(os.path.abspath(__file__)), "game_logs.json")
@@ -406,4 +437,6 @@ def grind(n_rounds, api_key, base_url, model):
         log("INFO", f"总局数: {stats['games']} | 命中: {stats['correct']} | 命中率: {acc:.0f}%")
         log("INFO", f"真人对手: {stats['actual_human']} | AI 对手: {stats['actual_ai']}")
         log("INFO", f"错误/未匹配: {stats['errors']}"); log("INFO", f"日志已保存: {lf}")
+        update_state(stats=dict(stats), phase="idle")
+        emit({"type": "stats", "stats": dict(stats)})
     except KeyboardInterrupt: pass
