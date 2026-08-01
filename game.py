@@ -322,6 +322,8 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                 if sr:
                     if cfg.DEBUG: log("DEBUG", f"搜索到 {len(sr)} 条")
                     llm_msgs.insert(1, {"role": "system", "content": "[搜索结果]\n" + "\n".join(f"- {r}" for r in sr)})
+                elif cfg.DEBUG:
+                    log("DEBUG", f"搜索无结果: {new_opp_msgs[-1]['text'][:40]}")
 
             raw = chat_completion(llm_msgs, api_key, base_url, model)
             if raw.startswith("__ERROR__"): log("ERROR", f"LLM错误: {raw[:100]}"); continue
