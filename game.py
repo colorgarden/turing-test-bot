@@ -317,8 +317,11 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
 
             last_llm_call = now
             llm_msgs = build_messages(messages)
-            if new_opp_msgs and len(new_opp_msgs[-1]["text"]) > 3:
-                sr = web_search(new_opp_msgs[-1]["text"], max_results=3)
+            if new_opp_msgs:
+                txt = new_opp_msgs[-1]["text"]
+                should_search = len(txt) > 10 or any(c in txt for c in "/链接代称梗典传说语录"))
+                if should_search:
+                    sr = web_search(txt, max_results=3)
                 if sr:
                     if cfg.DEBUG: log("DEBUG", f"搜索到 {len(sr)} 条")
                     llm_msgs.insert(1, {"role": "system", "content": "[搜索结果]\n" + "\n".join(f"- {r}" for r in sr)})
