@@ -22,6 +22,33 @@ _game_state = {             # 当前游戏状态快照
 }
 _state_lock = threading.Lock()
 
+# ============ 人工接管 ============
+_llm_paused = False           # True=中断LLM，人工接管
+_pause_lock = threading.Lock()
+_manual_queue = []            # 人工操作队列 [{action:"send"|"guess", ...}]
+_manual_lock = threading.Lock()
+
+def is_llm_paused():
+    with _pause_lock:
+        return _llm_paused
+
+def set_llm_paused(paused):
+    global _llm_paused
+    with _pause_lock:
+        _llm_paused = paused
+    emit({"type": "llm_state", "paused": paused})
+
+def pop_manual_actions():
+    """取出并清空人工操作队列（供 game.py 轮询）"""
+    with _manual_lock:
+        acts = _manual_queue[:]
+        _manual_queue.clear()
+    return acts
+
+def push_manual_action(action):
+    with _manual_lock:
+        _manual_queue.append(action)
+
 # ============ 广播 ============
 def emit(event):
     """广播 JSON 事件给所有已连接 SSE 客户端，失败客户端自动移除"""
@@ -57,6 +84,7 @@ def get_state_snapshot():
         state = dict(_game_state)
     with _log_buffer_lock:
         logs = list(_log_buffer)
+    state["llm_paused"] = is_llm_paused()
     return {"state": state, "logs": logs}
 
 # ============ HTTP Handler ============
@@ -82,6 +110,31 @@ class _SSEHandler(http.server.BaseHTTPRequestHandler):
             self._serve_state()
         else:
             self.send_error(404)
+
+    def do_POST(self):
+        path = self.path.split("?")[0]
+        if path != "/action":
+            self.send_error(404)
+            return
+        length = int(self.headers.get("Content-Length", 0))
+        body = json.loads(self.rfile.read(length).decode("utf-8") or "{}") if length else {}
+        action = body.get("action", "")
+        ok = True
+        if action == "toggle_llm":
+            set_llm_paused(not is_llm_paused())
+        elif action == "send":
+            push_manual_action({"action": "send", "text": body.get("text", "")})
+        elif action == "guess":
+            push_manual_action({"action": "guess", "value": body.get("value", "human")})
+        else:
+            ok = False
+        resp = json.dumps({"ok": ok, "paused": is_llm_paused()}, ensure_ascii=False).encode("utf-8")
+        self.send_response(200 if ok else 400)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(resp)))
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        self.wfile.write(resp)
 
     def _serve_file(self, filepath, content_type):
         try:

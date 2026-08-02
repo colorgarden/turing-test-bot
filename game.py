@@ -440,6 +440,33 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                     elif cfg.DEBUG:
                         log("DEBUG", f"搜索无结果: {txt[:40]}")
 
+            # 人工接管：LLM 暂停时执行 WebUI 下发的操作
+            if ws and not we_locked and __import__('webui').is_llm_paused():
+                acts = __import__('webui').pop_manual_actions()
+                handled = False
+                for act in acts:
+                    if act.get("action") == "send":
+                        txt = act.get("text", "").strip()
+                        if txt:
+                            req("POST", f"/api/turing/rooms/{room_id}/messages", {"sessionId": session_id, "text": txt})
+                            log("CHAT", f"send:[人工] {txt}")
+                            if new_opp_msgs: last_replied_seq = new_opp_msgs[-1]["sequence"]
+                            handled = True
+                    elif act.get("action") == "guess":
+                        val = act.get("value", "human")
+                        if val in ("human", "ai"):
+                            log("GAME", f"guess:[人工] 判定: {val}!")
+                            gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": val})
+                            if gr and (gr.get("guessState") or gr.get("result")):
+                                we_locked = True
+                                if gr.get("guessState"): guess_state = gr["guessState"]
+                                if gr.get("result"): result = gr["result"]; phase = "ended"
+                            else: log("ERROR", f"判定API失败: {gr}")
+                            handled = True
+                if handled:
+                    if phase == "ended": break
+                    continue  # 人工操作后跳过 LLM
+
             raw = chat_completion(llm_msgs, api_key, base_url, model)
             if raw.startswith("__ERROR__"): log("ERROR", f"LLM错误: {raw[:100]}"); continue
 

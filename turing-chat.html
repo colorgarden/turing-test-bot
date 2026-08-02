@@ -146,6 +146,7 @@
         <span id="timerLabel">TIME LEFT</span>
         <strong id="timerValue">--:--</strong>
       </div>
+      <button type="button" id="pauseBtn" style="min-height:36px;padding:0 12px;border:2px solid var(--ink);background:var(--paper);color:var(--ink);font-size:11px;font-weight:900;cursor:pointer;box-shadow:2px 2px 0 var(--ink)">中断LLM</button>
     </header>
 
     <!-- 状态条 -->
@@ -211,7 +212,8 @@
   var timerEl = $("timer"), timerLabel = $("timerLabel"), timerValue = $("timerValue");
   var onlineDot = $("onlineDot"), phaseLabel = $("phaseLabel");
   var logBody = $("logBody"), logToggle = $("logToggle"), logCount = $("logCount");
-  var inputEl = $("input"), sendBtn = $("sendBtn");
+  var inputEl = $("input"), sendBtn = $("sendBtn"), pauseBtn = $("pauseBtn");
+  var llmPaused = false;
 
   /* ---------- 全局状态 ---------- */
   var state = {
@@ -420,6 +422,10 @@
       case "stats":
         updateStats(evt.stats);
         break;
+
+      case "llm_state":
+        applyPauseUI(evt.paused);
+        break;
     }
   }
 
@@ -438,6 +444,7 @@
         if (s.game_start) { state.game_start = s.game_start; startTimer(); }
         if (s.phase) { state.phase = s.phase; updatePhase(s.phase); }
         if (s.connected) state.connected = true;
+        if (s.llm_paused) applyPauseUI(true);
         if (s.account){
           var a = s.account;
           if (a.username) $("opponentId").textContent = "BOT: " + a.username;
@@ -479,12 +486,54 @@
     span.textContent = logBody.classList.contains("is-open") ? "◉ 原始日志流（点击折叠）" : "◉ 原始日志流（点击展开）";
   };
 
+  /* ---------- 人工接管 ---------- */
+  function postAction(payload){
+    return fetch("/action", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(payload)
+    }).then(function(r){ return r.json(); }).catch(function(){ return {ok:false}; });
+  }
+
+  function applyPauseUI(paused){
+    llmPaused = paused;
+    pauseBtn.textContent = paused ? "恢复LLM" : "中断LLM";
+    inputEl.disabled = !paused;
+    inputEl.readOnly = !paused;
+    inputEl.placeholder = paused ? "人工接管中，输入消息发送…" : "由 AI 自动操作，只读展示…";
+    sendBtn.disabled = !paused;
+    btnHuman.disabled = !paused;
+    btnAi.disabled = !paused;
+    addSystem(paused ? "已中断LLM，人工接管模式" : "已恢复LLM，AI 自动操作");
+  }
+
+  pauseBtn.onclick = function(){
+    postAction({action: "toggle_llm"}).then(function(r){
+      if (r.ok) applyPauseUI(r.paused);
+    });
+  };
+  sendBtn.onclick = function(){
+    var txt = inputEl.value.trim();
+    if (!txt) return;
+    postAction({action: "send", text: txt}).then(function(r){
+      if (r.ok){ inputEl.value = ""; addMessage("self", txt, "manual"); }
+    });
+  };
+  inputEl.addEventListener("keydown", function(e){
+    if (e.key === "Enter" && !e.shiftKey){
+      e.preventDefault(); sendBtn.click();
+    }
+  });
+  btnHuman.onclick = function(){ postAction({action: "guess", value: "human"}); };
+  btnAi.onclick = function(){ postAction({action: "guess", value: "ai"}); };
+
   /* ---------- 初始化 ---------- */
   var firstSys = messagesEl.querySelector(".turing-system-message");
   if (firstSys) firstSys.textContent = "◤ 连接后端中… ◥";
 
   inputEl.disabled = true; sendBtn.disabled = true;
   btnHuman.disabled = true; btnAi.disabled = true;
+  inputEl.readOnly = true;
 
   var es = connectSSE();
   startTimer();
