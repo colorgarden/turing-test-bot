@@ -6,6 +6,7 @@ from config import BASE, log, ts, save_account
 from api import req
 from llm import chat_completion
 from search import web_search
+import datetime
 
 # WebUI 广播（惰性导入，无 webui 时 emit 为 no-op）
 try:
@@ -94,7 +95,9 @@ SYSTEM_PROMPT = """你是图灵测试里的玩家。目标只有两个：伪装�
 
 
 def build_messages(chat_history):
-    msgs = [{"role": "system", "content": SYSTEM_PROMPT}]
+    now = datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")
+    time_note = f"当前时间: {now}\n\n"
+    msgs = [{"role": "system", "content": time_note + SYSTEM_PROMPT}]
     for m in chat_history:
         if m["sender"] == "system": continue
         msgs.append({"role": "assistant" if m["sender"] == "self" else "user", "content": m["text"]})
@@ -102,19 +105,27 @@ def build_messages(chat_history):
 
 
 def extract_keywords(text, api_key, base_url, model):
-    """用 LLM 从对方消息中提取搜索关键词，失败返回原文本"""
+    """用 LLM 判断对方消息是否提到了需要联网搜索才能理解的事物/事件/梗/概念。
+    不需要搜索时返回 None，需要时返回搜索关键词。"""
     try:
         msgs = [
-            {"role": "system", "content": "从用户消息中提取用于搜索引擎的关键词，只返回关键词（空格分隔，不超过15字），不要解释。"},
+            {"role": "system", "content": (
+                "判断用户消息是否提到了一个具体的事物、人物、事件、梗、概念或冷知识"
+                "（需要联网搜索才能理解或回应的）。"
+                "如果只是普通寒暄、情绪表达、简单问答，回复'否'。"
+                "如果需要搜索，回复搜索关键词（空格分隔，不超过15字）。不要解释。"
+            )},
             {"role": "user", "content": text}
         ]
         result = chat_completion(msgs, api_key, base_url, model)
         if result.startswith("__ERROR__"):
-            return text
+            return None
         kw = result.strip()[:60]
-        return kw if kw else text
+        if not kw or kw == "否":
+            return None
+        return kw
     except Exception:
-        return text
+        return None
 
 
 def play_one_game(nickname, api_key, base_url, model, game_logs):
@@ -373,14 +384,17 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             if new_opp_msgs:
                 txt = new_opp_msgs[-1]["text"]
                 sr = []
-                should_search = len(txt) > 5 or any(c in txt for c in "/链接代称梗典传说语录")
-                if should_search:
-                    query = extract_keywords(txt, api_key, base_url, model)
+                query = extract_keywords(txt, api_key, base_url, model)
+                if query:
                     if cfg.DEBUG: log("DEBUG", f"搜索关键词: {query}")
                     sr = web_search(query, max_results=3)
                     if sr:
                         if cfg.DEBUG: log("DEBUG", f"搜索到 {len(sr)} 条")
-                        llm_msgs.insert(1, {"role": "system", "content": "[搜索结果]\n" + "\n".join(f"- {r}" for r in sr)})
+                        hint = "[搜索结果]\n" + "\n".join(f"- {r}" for r in sr)
+                        hint += "\n\n注意：如果搜索结果涉及近三个月内的新闻、事件或热点话题，"
+                        hint += "说明对方很可能在讨论当前时事，是活人真人的概率大幅增加。"
+                        hint += "在后续判定时请将此作为重要依据。"
+                        llm_msgs.insert(1, {"role": "system", "content": hint})
                     elif cfg.DEBUG:
                         log("DEBUG", f"搜索无结果: {txt[:40]}")
 
