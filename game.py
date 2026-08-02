@@ -309,8 +309,8 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                 for m in messages:
                     if m["sender"] == "opponent": gms.append({"role": "user", "content": m["text"]})
                 gms.append({"role": "system", "content": "判定："})
-                raw = chat_completion(gms, api_key, base_url, model)
-                val = "ai" if any(w in raw for w in ["AI", "ai", "Ai", "机器", "不是人"]) else "human"
+                raw = chat_completion(gms, api_key, base_url, model) or ""
+                val = "ai" if any(w in (raw or "") for w in ["AI", "ai", "Ai", "机器", "不是人"]) else "human"
                 log("GAME", f"guess:判定: {val}!")
                 emit({"type": "guess", "value": val, "by": "self"})
                 gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": val})
