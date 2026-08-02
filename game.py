@@ -449,13 +449,13 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                         txt = act.get("text", "").strip()
                         if txt:
                             req("POST", f"/api/turing/rooms/{room_id}/messages", {"sessionId": session_id, "text": txt})
-                            log("CHAT", f"send:[人工] {txt}")
+                            log("CHAT", f"send:{txt}")
                             if new_opp_msgs: last_replied_seq = new_opp_msgs[-1]["sequence"]
                             handled = True
                     elif act.get("action") == "guess":
                         val = act.get("value", "human")
                         if val in ("human", "ai") and not we_locked:
-                            log("GAME", f"guess:[人工] 判定: {val}!")
+                            log("GAME", f"guess:判定: {val}!")
                             gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": val})
                             if gr and (gr.get("guessState") or gr.get("result")):
                                 we_locked = True
