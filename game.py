@@ -251,6 +251,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
     log("GAME", f"conn:已连接 {room_id}")
     update_state(roomId=room_id, connected=True, phase="chatting")
     emit({"type": "status", "key": "connected", "value": room_id})
+    conn_time = time.time()  # 连接时间戳，用于超时检测
 
     # 3. 房间用 WS（有 WS 则订阅房间，否则 SSE 兜底）
     if ws:
@@ -384,10 +385,20 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             elapsed = now - game_start if game_start else 0
 
             if game_start is None and opp_msgs: game_start = time.time(); elapsed = 0; log("GAME", "timer:开始计时"); update_state(game_start=game_start); emit({"type": "status", "key": "game_start", "value": game_start})
+            # 45 秒内对方无消息 → 直接判定真人
+            if not opp_msgs and time.time() - conn_time > 45 and not we_locked:
+                log("GAME", "guess:45秒无对话，判定真人")
+                emit({"type": "guess", "value": "human", "by": "self"})
+                gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": "human"})
+                if gr and (gr.get("guessState") or gr.get("result")):
+                    we_locked = True
+                    if gr.get("guessState"): guess_state = gr["guessState"]
+                    if gr.get("result"): result = gr["result"]; phase = "ended"
+                continue
             if not opp_msgs and not self_msgs and not (guess_state and guess_state.get("opponentLocked")): continue
 
             ol = guess_state and guess_state.get("opponentLocked")
-            if not game_start and not opp_msgs and elapsed > 15 and not self_msgs and not ol:
+            if not game_start and not opp_msgs and time.time() - conn_time > 15 and not self_msgs and not ol:
                 t = random.choice(["你好啊", "在吗", "嗨", "有人吗"]); game_start = time.time()
                 req("POST", f"/api/turing/rooms/{room_id}/messages", {"sessionId": session_id, "text": t})
                 log("CHAT", f"send:{t}"); emit({"type": "chat", "sender": "self", "text": t, "sequence": 0}); continue
