@@ -19,25 +19,36 @@ import search
 
 def do_register():
     global AUTH_TOKEN
-    chall = req("GET", "/api/auth/turing-register-challenge")
-    if "id" not in chall:
-        log("ERROR", f"获取验证码失败: {chall}")
-        return
-    q = chall.get("question", "0+0=?")
-    q = q.replace(" ", "").replace("=?", "").replace("?", "").replace("=", "")
-    try:
-        ans = str(eval(q))
-    except Exception:
-        ans = "0"
-    log("INFO", f"验证码: {chall['question']} -> 答案: {ans}")
-    uname = f"bot_{uuid.uuid4().hex[:8]}"
-    pwd = "bot123456"
+    import hashlib, base64 as _b64, struct
+    chall = req("GET", "/api/auth/turing-register-challenge?verificationClient=dual")
+    altcha_raw = chall.get("altcha") or chall.get("challenge") or chall
+    if isinstance(altcha_raw, str):
+        altcha_raw = json.loads(_b64.b64decode(altcha_raw).decode())
+    params = altcha_raw.get("challenge", altcha_raw).get("parameters", {})
+    nonce = bytes.fromhex(params.get("nonce", ""))
+    salt = bytes.fromhex(params.get("salt", ""))
+    key_prefix = params.get("keyPrefix", "")
+    cost = params.get("cost", 3000)
+    log("INFO", f"解Altcha(cost={cost})...")
+    counter = 0
+    while True:
+        # PBKDF2 password = nonce + counter(uint32 big-endian)
+        pw = nonce + struct.pack(">I", counter)
+        dk = hashlib.pbkdf2_hmac("sha256", pw, salt, cost, dklen=32)
+        derived = bytes(dk).hex()
+        if derived.startswith(key_prefix): break
+        counter += 1
+    log("INFO", f"Altcha solved: counter={counter}")
+    sol = _b64.b64encode(json.dumps({
+        "challenge": altcha_raw.get("challenge", altcha_raw),
+        "solution": {"counter": counter, "derivedKey": derived, "time": int(__import__('time').time())}
+    }).encode()).decode()
+    uname = f"bot_{uuid.uuid4().hex[:8]}"; pwd = "bot123456"
     reg = req("POST", "/api/auth/turing-register", {
         "username": uname, "password": pwd, "confirmPassword": pwd,
-        "realName": "", "idNumber": "", "phone": "",
-        "challengeId": chall["id"], "challengeAnswer": ans,
+        "altcha": sol,
         "acceptedTerms": True, "acceptedPrivacy": True,
-        "acceptedIdentityProcessing": False, "acceptedTuringRules": True
+        "acceptedTuringRules": True
     })
     if "error" in reg or reg.get("code"):
         log("ERROR", f"注册失败: {reg}")

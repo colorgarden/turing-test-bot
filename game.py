@@ -137,19 +137,37 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
         uname = last[-1]["username"] if last else "已登录"
         play_one_game.account_info = {"type": "registered", "username": uname}
     else:
-        chall = req("GET", "/api/auth/turing-register-challenge")
-        if "id" in chall:
-            q = chall.get("question", "0+0=?").replace(" ", "").replace("=?", "").replace("?", "").replace("=", "")
-            try: ans = str(eval(q))
-            except: ans = "0"
+        try:
+            import hashlib, base64 as _b64, struct
+            chall = req("GET", "/api/auth/turing-register-challenge?verificationClient=dual")
+            altcha_raw = chall.get("altcha") or chall.get("challenge") or chall
+            if isinstance(altcha_raw, str):
+                altcha_raw = json.loads(_b64.b64decode(altcha_raw).decode())
+            params = altcha_raw.get("challenge", altcha_raw).get("parameters", {})
+            nonce = bytes.fromhex(params.get("nonce", ""))
+            salt = bytes.fromhex(params.get("salt", ""))
+            key_prefix = params.get("keyPrefix", "")
+            cost = params.get("cost", 3000)
+            counter = 0
+            while True:
+                pw = nonce + struct.pack(">I", counter)
+                dk = hashlib.pbkdf2_hmac("sha256", pw, salt, cost, dklen=32)
+                derived = bytes(dk).hex()
+                if derived.startswith(key_prefix): break
+                counter += 1
+            sol = _b64.b64encode(json.dumps({
+                "challenge": altcha_raw.get("challenge", altcha_raw),
+                "solution": {"counter": counter, "derivedKey": derived, "time": int(time.time())}
+            }).encode()).decode()
             uname = f"bot_{uuid.uuid4().hex[:8]}"; pwd = "bot123456"
-            reg = req("POST", "/api/auth/turing-register", {"username": uname, "password": pwd, "confirmPassword": pwd, "challengeId": chall["id"], "challengeAnswer": ans, "acceptedTerms": True, "acceptedPrivacy": True, "acceptedIdentityProcessing": False, "acceptedTuringRules": True})
+            reg = req("POST", "/api/auth/turing-register", {"username":uname,"password":pwd,"confirmPassword":pwd,"altcha":sol,"acceptedTerms":True,"acceptedPrivacy":True,"acceptedTuringRules":True})
             if "error" not in reg and not reg.get("code"):
-                play_one_game.account_info = {"type": "registered", "username": uname, "password": pwd}
-                if reg.get("token"): cfg.AUTH_TOKEN = reg["token"]; save_account(uname, pwd, reg["token"])
+                play_one_game.account_info = {"type":"registered","username":uname,"password":pwd}
+                if reg.get("token"): cfg.AUTH_TOKEN = reg["token"]; save_account(uname,pwd,reg["token"])
                 log("INFO", f"注册成功 账号:{uname} 密码:{pwd}")
             else: log("WARN", f"注册失败: {reg.get('error','?')}")
-        else: log("WARN", f"无法获取验证码: {chall.get('error','?')}")
+        except Exception as e:
+            log("WARN", f"自动注册失败: {e}")
 
     acct = play_one_game.account_info
     log("GAME", f"[{acct.get('username', acct.get('type', '?'))}] 发起匹配 {nickname}")
