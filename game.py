@@ -363,7 +363,12 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             if rc.startswith("{") and rc.endswith("}"):
                 try: action = json.loads(rc)
                 except json.JSONDecodeError: pass
-            if action is None: action = {"action": "chat", "text": rc[:80]}
+            if action is None:
+                # 纯文本"真人"/"AI"→判定，不发聊天
+                if rc in ("真人", "人", "AI", "ai", "Ai"):
+                    action = {"action": "guess", "value": "human" if rc in ("真人", "人") else "ai"}
+                else:
+                    action = {"action": "chat", "text": rc[:80]}
 
             a, t = action.get("action", "?"), action.get("text", "") or action.get("value", "")
             log("LLM", f"{a}: {t[:80]}")
