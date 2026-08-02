@@ -120,7 +120,10 @@ class _SSEHandler(http.server.BaseHTTPRequestHandler):
         body = json.loads(self.rfile.read(length).decode("utf-8") or "{}") if length else {}
         action = body.get("action", "")
         ok = True
-        if action == "toggle_llm":
+        phase = _game_state.get("phase", "idle")
+        if phase != "chatting":
+            ok = False  # 匹配/空闲阶段禁止人工操作
+        elif action == "toggle_llm":
             set_llm_paused(not is_llm_paused())
         elif action == "send":
             push_manual_action({"action": "send", "text": body.get("text", "")})
