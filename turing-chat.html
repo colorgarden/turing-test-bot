@@ -319,6 +319,8 @@
     btnAi.classList.add("is-locked");
     btnHuman.classList.remove("is-active");
     btnAi.classList.remove("is-active");
+    btnHuman.disabled = true;
+    btnAi.disabled = true;
     if (guess === "human") btnHuman.classList.add("is-active");
     else if (guess === "ai") btnAi.classList.add("is-active");
     verdictCopy.querySelector("span").textContent = "ANSWER LOCKED";
@@ -327,6 +329,8 @@
   function resetVerdict(){
     btnHuman.classList.remove("is-locked", "is-active");
     btnAi.classList.remove("is-locked", "is-active");
+    btnHuman.disabled = !llmPaused;
+    btnAi.disabled = !llmPaused;
     verdictCopy.querySelector("span").textContent = "LOCK YOUR ANSWER";
     verdictCopy.querySelector("small").textContent = "AI 自动判定中…";
     lastGuess = null;
@@ -502,8 +506,14 @@
     inputEl.readOnly = !paused;
     inputEl.placeholder = paused ? "人工接管中，输入消息发送…" : "由 AI 自动操作，只读展示…";
     sendBtn.disabled = !paused;
-    btnHuman.disabled = !paused;
-    btnAi.disabled = !paused;
+    if (!paused){
+      // 恢复时若已锁定则保持锁定
+      if (!lastGuess){
+        btnHuman.disabled = false; btnAi.disabled = false;
+      }
+    } else {
+      btnHuman.disabled = false; btnAi.disabled = false;
+    }
     addSystem(paused ? "已中断LLM，人工接管模式" : "已恢复LLM，AI 自动操作");
   }
 
@@ -524,8 +534,22 @@
       e.preventDefault(); sendBtn.click();
     }
   });
-  btnHuman.onclick = function(){ postAction({action: "guess", value: "human"}); };
-  btnAi.onclick = function(){ postAction({action: "guess", value: "ai"}); };
+  btnHuman.onclick = function(){
+    if (!llmPaused) return;
+    setVerdictLocked("human");
+    postAction({action: "guess", value: "human"}).then(function(r){
+      if (r.ok) addSystem("已提交判定: 真人");
+      else setVerdictLocked(null);
+    });
+  };
+  btnAi.onclick = function(){
+    if (!llmPaused) return;
+    setVerdictLocked("ai");
+    postAction({action: "guess", value: "ai"}).then(function(r){
+      if (r.ok) addSystem("已提交判定: AI");
+      else setVerdictLocked(null);
+    });
+  };
 
   /* ---------- 初始化 ---------- */
   var firstSys = messagesEl.querySelector(".turing-system-message");
