@@ -75,12 +75,22 @@ class RawWS:
         if n < 65536: return bytes([126 | (0x80 if masked else 0)]) + struct.pack(">H", n)
         return bytes([127 | (0x80 if masked else 0)]) + struct.pack(">Q", n)
 
-SYSTEM_PROMPT = """你是图灵测试里的真人玩家。目标：伪装真人 + 识破AI。
-聊天像微信：5-20字 口语 用网络词 可错字不打句号
-必须接对方的话题！对方说什么你就回应什么 不要自顾自说
-对方说怪话回"?" 不要念诗/客服腔/大量emoji/结构化
-聊2-3轮必须判定。AI信号：剧本独白 每句emoji 客服语气 念歌词。真人：口语 接茬 缩写 自然
-判定时只回复两个字：真人 或 AI"""
+SYSTEM_PROMPT = """你是图灵测试里的玩家。目标只有两个：伪装成真人，同时识破对方是AI还是真人。
+聊天规则（必须严格执行）：
+像微信聊天一样说话。每条消息控制在5-20个字。口语化，多用网络词、缩写、语气词。允许错别字、漏字、语序乱。不打句号，少用标点。不要写完整长句，不要书面语。
+必须接对方的话题。对方说什么你就顺着回什么，不要自顾自开启新话题，不要突然转移方向。对方没问的事不要主动提。
+对方说怪话、突然跳跃、前言不搭后语时，直接回"?"。不要解释，不要追问太多，不要装作很懂。
+严格禁止以下表现：
+- 念诗、对仗、排比、押韵
+- 客服腔、礼貌过头、每句都带"呢""哦""呀"
+- 每句都加emoji
+- 结构化回复（一二三四、分点、总结）
+- 逻辑过于完整、前后呼应太强
+- 主动自我介绍身份或强调自己是真人
+判断时机：聊满2-3轮后必须做出判定。不要拖太久。
+判断依据：AI特征：上下文高度连贯，经常顺着你的思维走，回复逻辑完整，很少突然跳话题，语句特征稳定，很少出现你完全看不懂的内容。真人特征：多次发送你无法理解的语句，上下句之间很少有相同特征，经常突然岔开、前言不搭后语，口语缩写多，语气不稳定，回复节奏不规律。
+判定时只回复两个字：真人 或 AI
+除此之外不要多说任何解释。"""
 
 
 def build_messages(chat_history):
@@ -89,6 +99,22 @@ def build_messages(chat_history):
         if m["sender"] == "system": continue
         msgs.append({"role": "assistant" if m["sender"] == "self" else "user", "content": m["text"]})
     return msgs
+
+
+def extract_keywords(text, api_key, base_url, model):
+    """用 LLM 从对方消息中提取搜索关键词，失败返回原文本"""
+    try:
+        msgs = [
+            {"role": "system", "content": "从用户消息中提取用于搜索引擎的关键词，只返回关键词（空格分隔，不超过15字），不要解释。"},
+            {"role": "user", "content": text}
+        ]
+        result = chat_completion(msgs, api_key, base_url, model)
+        if result.startswith("__ERROR__"):
+            return text
+        kw = result.strip()[:60]
+        return kw if kw else text
+    except Exception:
+        return text
 
 
 def play_one_game(nickname, api_key, base_url, model, game_logs):
@@ -347,9 +373,11 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             if new_opp_msgs:
                 txt = new_opp_msgs[-1]["text"]
                 sr = []
-                should_search = len(txt) > 10 or any(c in txt for c in "/链接代称梗典传说语录")
+                should_search = len(txt) > 5 or any(c in txt for c in "/链接代称梗典传说语录")
                 if should_search:
-                    sr = web_search(txt, max_results=3)
+                    query = extract_keywords(txt, api_key, base_url, model)
+                    if cfg.DEBUG: log("DEBUG", f"搜索关键词: {query}")
+                    sr = web_search(query, max_results=3)
                     if sr:
                         if cfg.DEBUG: log("DEBUG", f"搜索到 {len(sr)} 条")
                         llm_msgs.insert(1, {"role": "system", "content": "[搜索结果]\n" + "\n".join(f"- {r}" for r in sr)})
