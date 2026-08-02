@@ -19,21 +19,23 @@ import search
 
 def do_register():
     global AUTH_TOKEN
-    import hashlib, base64 as _b64
+    import hashlib, base64 as _b64, struct
     chall = req("GET", "/api/auth/turing-register-challenge?verificationClient=dual")
     altcha_raw = chall.get("altcha") or chall.get("challenge") or chall
     if isinstance(altcha_raw, str):
         altcha_raw = json.loads(_b64.b64decode(altcha_raw).decode())
     params = altcha_raw.get("challenge", altcha_raw).get("parameters", {})
-    salt_str = params.get("salt", "")
-    salt = bytes.fromhex(salt_str) if len(salt_str) == 64 else _b64.b64decode(salt_str)
+    nonce = bytes.fromhex(params.get("nonce", ""))
+    salt = bytes.fromhex(params.get("salt", ""))
     key_prefix = params.get("keyPrefix", "")
     cost = params.get("cost", 3000)
     log("INFO", f"解Altcha(cost={cost})...")
     counter = 0
     while True:
-        dk = hashlib.pbkdf2_hmac("sha256", f"{counter}".encode(), salt, cost, dklen=32)
-        derived = _b64.b64encode(dk).decode()
+        # PBKDF2 password = nonce + counter(uint32 big-endian)
+        pw = nonce + struct.pack(">I", counter)
+        dk = hashlib.pbkdf2_hmac("sha256", pw, salt, cost, dklen=32)
+        derived = bytes(dk).hex()
         if derived.startswith(key_prefix): break
         counter += 1
     log("INFO", f"Altcha solved: counter={counter}")
