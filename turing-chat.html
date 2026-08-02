@@ -393,6 +393,9 @@
           state.game_start = evt.value;
           startTimer();
           addSystem("开始计时");
+        } else if (evt.key === "account"){
+          if (evt.username) $("opponentId").textContent = "BOT: " + evt.username;
+          $("opponentLabel").textContent = evt.type === "registered" ? "REGISTERED" : "GUEST";
         } else if (evt.key === "system"){
           addSystem(evt.value);
         } else if (evt.key === "round_result"){

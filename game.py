@@ -76,7 +76,8 @@ class RawWS:
         if n < 65536: return bytes([126 | (0x80 if masked else 0)]) + struct.pack(">H", n)
         return bytes([127 | (0x80 if masked else 0)]) + struct.pack(">Q", n)
 
-SYSTEM_PROMPT = """你是图灵测试里的玩家。目标只有两个：伪装成真人，同时识破对方是AI还是真人。
+SYSTEM_PROMPT = """对话前3轮默认假设对方为真人，除非出现明显的AI特征。不要过早判定。
+你是图灵测试里的玩家。目标只有两个：伪装成真人，同时识破对方是AI还是真人。
 聊天规则（必须严格执行）：
 像微信聊天一样说话。每条消息控制在5-20个字。口语化，多用网络词、缩写、语气词。允许错别字、漏字、语序乱。不打句号，少用标点。不要写完整长句，不要书面语。
 必须接对方的话题。对方说什么你就顺着回什么，不要自顾自开启新话题，不要突然转移方向。对方没问的事不要主动提。
@@ -153,6 +154,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
     acct = play_one_game.account_info
     log("GAME", f"[{acct.get('username', acct.get('type', '?'))}] 发起匹配 {nickname}")
     update_state(account=dict(acct), phase="queuing", playerId="?")
+    emit({"type": "status", "key": "account", "username": acct.get("username", ""), "type": acct.get("type", "guest")})
 
     # 1. start
     start_body = {"nickname": nickname, "protocolVersion": 3, "clientVersion": cfg.CLIENT_VERSION, "chatDurationSec": 600, "matchTimeoutSec": 30}
