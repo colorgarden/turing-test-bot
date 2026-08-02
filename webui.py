@@ -121,10 +121,11 @@ class _SSEHandler(http.server.BaseHTTPRequestHandler):
         action = body.get("action", "")
         ok = True
         phase = _game_state.get("phase", "idle")
-        if phase != "chatting":
-            ok = False  # 匹配/空闲阶段禁止人工操作
-        elif action == "toggle_llm":
+        if action == "toggle_llm":
+            # 任何阶段都可以暂停/恢复
             set_llm_paused(not is_llm_paused())
+        elif phase != "chatting":
+            ok = False  # 匹配/空闲阶段禁止发消息和判定
         elif action == "send":
             push_manual_action({"action": "send", "text": body.get("text", "")})
         elif action == "guess":

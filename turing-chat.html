@@ -355,14 +355,13 @@
     var map = { idle: "空闲", queuing: "排队中…", chatting: "聊天中", ended: "本局结束" };
     phaseLabel.textContent = map[phase] || phase;
     onlineDot.className = "turing-online-dot" + (phase === "idle" ? " is-offline" : "");
-    // 匹配/空闲阶段禁用人工接管
-    pauseBtn.disabled = phase !== "chatting";
-    if (phase !== "chatting" && llmPaused){
-      // 离开聊天阶段自动恢复 LLM
-      postAction({action: "toggle_llm"}).then(function(r){
-        if (r.ok) applyPauseUI(r.paused);
-      });
-    }
+    // 只有聊天阶段能发消息和判定
+    var canAct = phase === "chatting" && llmPaused;
+    inputEl.disabled = !canAct;
+    inputEl.readOnly = !canAct;
+    sendBtn.disabled = !canAct;
+    btnHuman.disabled = !canAct;
+    btnAi.disabled = !canAct;
   }
 
   /* ---------- 事件处理 ---------- */
