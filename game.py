@@ -106,7 +106,8 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             if isinstance(altcha_raw, str):
                 altcha_raw = json.loads(_b64.b64decode(altcha_raw).decode())
             params = altcha_raw.get("challenge", altcha_raw).get("parameters", {})
-            salt = _b64.b64decode(params.get("salt", ""))
+            salt_str = params.get("salt", "")
+            salt = bytes.fromhex(salt_str) if len(salt_str) == 64 else _b64.b64decode(salt_str)
             key_prefix = params.get("keyPrefix", "")
             cost = params.get("cost", 3000)
             counter = 0
