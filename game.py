@@ -276,6 +276,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
     last_llm_call, last_replied_seq, game_start = 0, 0, None
     we_locked, opp_guess_done, phase = False, False, "chatting"
     buffer, sock = "", None
+    last_opp_msg_time = None  # 对方最后一条消息的时间戳，用于45s超时检测
 
     # WS 后台接收线程（不阻塞主循环和 LLM）
     ws_queue = []; ws_lock = __import__('threading').Lock(); ws_alive = [True]
@@ -320,6 +321,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                                         emit({"type": "status", "key": "system", "value": msg["text"]})
                                     else:
                                         emit({"type": "chat", "sender": "opponent", "text": msg["text"], "sequence": msg["sequence"]})
+                                        last_opp_msg_time = time.time()
                         if "guessState" in room: guess_state = room["guessState"]
                         if "result" in room and room["result"]: result=room["result"]; phase="ended"; log("GAME","end:结果已出"); emit({"type":"result","result":room["result"]})
                         if room.get("state")=="ended": phase="ended"; log("GAME","end:游戏结束"); emit({"type":"result","result":room.get("result",{})})
@@ -350,6 +352,7 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
                                             emit({"type": "status", "key": "system", "value": msg["text"]})
                                         else:
                                             emit({"type": "chat", "sender": "opponent", "text": msg["text"], "sequence": msg["sequence"]})
+                                            last_opp_msg_time = time.time()
                             if "guessState" in evt: guess_state = evt["guessState"]
                             if "result" in evt and evt["result"]: result=evt["result"]; phase="ended"; log("GAME","end:结果已出"); emit({"type":"result","result":evt["result"]})
                             if evt.get("state")=="ended": phase="ended"; log("GAME","end:游戏结束"); emit({"type":"result","result":evt.get("result",{})})
@@ -363,12 +366,20 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             # 对手刚锁 → 立刻猜
             if guess_state and guess_state.get("opponentLocked") and not guess_state.get("selfLocked") and not we_locked and not opp_guess_done:
                 opp_guess_done = True
-                gms = [{"role": "system", "content": SYSTEM_PROMPT}]
+                now_ts = datetime.datetime.now().strftime("%Y年%m月%d日 %H:%M:%S")
+                gms = [{"role": "system", "content": f"当前时间: {now_ts}\n\n{SYSTEM_PROMPT}"}]
                 for m in messages:
                     if m["sender"] == "opponent": gms.append({"role": "user", "content": m["text"]})
                 gms.append({"role": "system", "content": "判定："})
                 raw = chat_completion(gms, api_key, base_url, model) or ""
-                val = "ai" if any(w in (raw or "") for w in ["AI", "ai", "Ai", "机器", "不是人"]) else "human"
+                raw = (raw or "").strip()
+                # 如果回复不明确（没以"真人"或"AI"开头），补一句引导再问
+                if raw[:2] not in ("真人", "AI", "ai"):
+                    gms.append({"role": "assistant", "content": raw})
+                    gms.append({"role": "system", "content": "请只回复'真人'或'AI'两个字，不要其他内容。"})
+                    raw = chat_completion(gms, api_key, base_url, model) or ""
+                    raw = (raw or "").strip()
+                val = "ai" if raw[:2] in ("AI", "ai") else "human"
                 log("GAME", f"guess:判定: {val}!")
                 emit({"type": "guess", "value": val, "by": "self"})
                 gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": val})
@@ -385,8 +396,8 @@ def play_one_game(nickname, api_key, base_url, model, game_logs):
             elapsed = now - game_start if game_start else 0
 
             if game_start is None and opp_msgs: game_start = time.time(); elapsed = 0; log("GAME", "timer:开始计时"); update_state(game_start=game_start); emit({"type": "status", "key": "game_start", "value": game_start})
-            # 45 秒内对方无消息 → 直接判定真人
-            if not opp_msgs and time.time() - conn_time > 45 and not we_locked:
+            # 对方最后一条消息后 45 秒内无新消息 → 直接判定真人
+            if last_opp_msg_time and time.time() - last_opp_msg_time > 45 and not we_locked:
                 log("GAME", "guess:45秒无对话，判定真人")
                 emit({"type": "guess", "value": "human", "by": "self"})
                 gr = req("POST", f"/api/turing/rooms/{room_id}/guess", {"sessionId": session_id, "guess": "human"})
