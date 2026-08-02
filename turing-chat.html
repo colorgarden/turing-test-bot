@@ -157,7 +157,7 @@
 
     <!-- 消息区 -->
     <div class="turing-messages" id="messages" aria-live="polite">
-      <div class="turing-system-message">◤ 等待后端连接… ◥</div>
+      <div class="turing-system-message">等待后端连接…</div>
     </div>
 
     <!-- 错误提示（隐藏） -->
@@ -291,10 +291,10 @@
 
   function addSystem(text){
     var sys = messagesEl.querySelectorAll(".turing-system-message");
-    if (sys.length > 0 && sys[sys.length-1].textContent.replace(/[◤◥]/g,"").trim() === text.trim()) return;
+    if (sys.length > 0 && sys[sys.length-1].textContent.trim() === text.trim()) return;
     var d = document.createElement("div");
     d.className = "turing-system-message";
-    d.textContent = "◤ " + text + " ◥";
+    d.textContent = text;
     messagesEl.appendChild(d);
     messagesEl.scrollTop = messagesEl.scrollHeight;
   }
@@ -468,7 +468,7 @@
         }
         var first = messagesEl.querySelector(".turing-system-message");
         if (first && first.textContent.indexOf("等待后端连接") >= 0){
-          first.textContent = "◤ 已连接后端，等待对局开始 ◥";
+          first.textContent = "已连接后端，等待对局开始";
         }
       }).catch(function(){});
     };
@@ -529,7 +529,7 @@
 
   /* ---------- 初始化 ---------- */
   var firstSys = messagesEl.querySelector(".turing-system-message");
-  if (firstSys) firstSys.textContent = "◤ 连接后端中… ◥";
+  if (firstSys) firstSys.textContent = "连接后端中…";
 
   inputEl.disabled = true; sendBtn.disabled = true;
   btnHuman.disabled = true; btnAi.disabled = true;
