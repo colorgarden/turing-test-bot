@@ -1,5 +1,7 @@
 # Turing Test Bot
 
+<span style="background-color: red; color: white; font-weight: bold;">由于网站下线，本仓库暂时归档，直到再次上线</span>
+
 图灵测试 AI 机器人 — 全自动伪装真人
 
 ## 用法
